@@ -186,7 +186,7 @@ int main(int argc, char **argv)
             //ROS_INFO_STREAM("getDistance " << getDistance());
 
 
-            ROS_INFO_STREAM("out of loop diff " <<  distanceToGoal);
+            ROS_INFO_STREAM("out of loop distance to goal " <<  getDistance());
             ROS_INFO_STREAM("out of loop replan count " << get_count_srv.response.replan_count);
             ROS_INFO_STREAM("prev of loop replan count " << prevReplanCount);
             //test with replan count if reduces false positives and if improves preformance
@@ -195,12 +195,13 @@ int main(int argc, char **argv)
             ROS_INFO_STREAM("old cou mnt " << old_count);
             ROS_INFO_STREAM("--------------------------pose size: " << old_size);
             ROS_INFO_STREAM("--------------------------pose size: " << current_path.poses.size());
-            while((current_path.poses.size() < 5)  || (r_goal.status_list[0].status == 4) || (prevReplanCount + 30 < get_count_srv.response.replan_count))///
+            while(((current_path.poses.size() < 5) && getDistance() > .5)  || (r_goal.status_list[0].status == 4) || (prevReplanCount + 30 < get_count_srv.response.replan_count))///
             {
                 //check = -check;
                 //ROS_INFO_STREAM("distanceToGoal " << distanceToGoal);
                 //ROS_INFO_STREAM("getDistance " << getDistance());
                 //ROS_INFO_STREAM("difference in loop " << (check));
+                ROS_INFO_STREAM("in loop distance to goal " <<  getDistance());
                 ROS_INFO_STREAM("in of loop replan count " << get_count_srv.response.replan_count);
                 ROS_INFO_STREAM("prev of loop replan count " << prevReplanCount);
 				distanceToGoal = getDistance();
@@ -232,6 +233,7 @@ int main(int argc, char **argv)
                         }
                         goal.type.led_animations = bwi_msgs::LEDAnimations::BLOCKED;
                         goal.timeout = ros::Duration(0);
+                        ac.sendGoal(goal);
                         ac.sendGoal(goal);
                     }
 
@@ -279,7 +281,7 @@ int main(int argc, char **argv)
 
                 led_srv.request.type.status = bwi_msgs::LEDStatus::RUN_ON;
                 led_client.call(led_srv);
-
+                led_client.call(led_srv);
                 get_count_client.call(get_count_srv);
                 ROS_INFO_STREAM("diff " << get_count_srv.response.recovery_count - old_count);
                 get_count_client.call(get_count_srv);
