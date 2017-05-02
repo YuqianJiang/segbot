@@ -3,6 +3,7 @@
 #include <iostream>
 #include <stdlib.h>
 #include <time.h>
+#include <queue>
 
 /*******************************************************
 *                    ROS Headers                       *
@@ -52,6 +53,7 @@ ros::Subscriber robot_pose;
 ros::Subscriber status;
 ros::Subscriber robot_goal;
 ros::Subscriber end_goal;
+ros::Subscriber movement_subscriber;
 
 nav_msgs::Path current_path;
 geometry_msgs::Pose current_pose;
@@ -124,9 +126,13 @@ int main(int argc, char **argv)
     ros::Rate recovered_check(2);
 
     srand(time(NULL));
+    double check_pose;
     time_t now = time(0);
+    //used to do recovery count
     int old_count = 0;
     int old_size = 0;
+    //counts number in queue that is greater for distance
+    int num_greater = 0;
     std::ofstream log_file;
     std::string log_filename = ros::package::getPath("led_study") + "/data/" + "blocked_state.csv";
 
@@ -153,7 +159,8 @@ int main(int argc, char **argv)
     end_goal = n.subscribe("/led_study/blocked_goal", 1, end_goal_cb);
 
     // Sets up action get_count_client
-    actionlib::SimpleActionClient<bwi_msgs::LEDControlAction> ac("led_control_server", true);
+    actionlib::SimpleActionClient<bwi_msgs::LEDControlAction> ac("led_control_server", true);       
+    std::queue<double> pose_queue;
     ac.waitForServer();
     int prevReplanCount = 0;
     double distanceToGoal;
@@ -166,7 +173,7 @@ int main(int argc, char **argv)
     while(!heard_path || !heard_pose)
     {
         ros::spinOnce();
-        loop_rate.sleep();
+        loop_rate.sleep();  
     }
     while(ros::ok())
     {
@@ -175,7 +182,10 @@ int main(int argc, char **argv)
         ros::spinOnce();
         get_count_client.call(get_count_srv);
 
+        //command velocity and distance and make a queue
+
         //ROS_INFO_STREAM(r_goal.status_list[0].status);
+
         if(heard_goal == true)
         {
             int randLED = rand()%2;
@@ -184,7 +194,18 @@ int main(int argc, char **argv)
             //Check constant if correct for variability
             //ROS_INFO_STREAM("distanceToGoal " << distanceToGoal);
             //ROS_INFO_STREAM("getDistance " << getDistance());
-
+            if(!(pose_queue.size() < 10)){
+                pose_queue.pop();
+            }
+            pose_queue.push(getDistance()); 
+            check_pose =  pose_queue.front();
+            num_greater = 0;
+            for(int i = 1; i < 8; i++){
+                //do math to compare diff between end and the poses from each point
+                if(check_pose > (double) pose_queue.front()){
+                    time_for_blocked = true; 
+                }
+            }
             ROS_INFO_STREAM("out of loop distance to goal " <<  getDistance());
             ROS_INFO_STREAM("out of loop replan count " << get_count_srv.response.replan_count);
             ROS_INFO_STREAM("prev of loop replan count " << prevReplanCount);
@@ -194,11 +215,12 @@ int main(int argc, char **argv)
             ROS_INFO_STREAM("old cou mnt " << old_count);
             ROS_INFO_STREAM("--------------------------pose size: " << old_size);
             ROS_INFO_STREAM("--------------------------pose size: " << current_path.poses.size());
-            while(((current_path.poses.size() < 5) && getDistance() > .5)  || (r_goal.status_list[0].status == 4) || (prevReplanCount + 30 < get_count_srv.response.replan_count) || check > 0)///
+            while(((current_path.poses.size() < 5) && getDistance() > .5)  || (r_goal.status_list[0].status == 4) || (prevReplanCount + 30 < get_count_srv.response.replan_count) || check > 0 || time_for_blocked)///
             {
                 //check = -check;
                 //ROS_INFO_STREAM("distanceToGoal " << distanceToGoal);
                 //ROS_INFO_STREAM("getDistance " << getDistance());
+
                 ROS_INFO_STREAM("difference in loop " << (check));
                 ROS_INFO_STREAM("distanceToGoal " << distanceToGoal);
                 ROS_INFO_STREAM("in loop distance to goal " <<  getDistance());
@@ -290,6 +312,7 @@ int main(int argc, char **argv)
                 //init_count_client.call(init_count_srv);
             }
             heard_goal = false;
+            time_for_blocked = false;
         }
         //init_count_client.call(init_count_srv);
         distanceToGoal = getDistance();
