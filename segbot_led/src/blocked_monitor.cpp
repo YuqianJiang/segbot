@@ -13,6 +13,7 @@
 #include <geometry_msgs/Pose.h>
 #include <geometry_msgs/PoseArray.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/Twist.h>
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <nav_msgs/Path.h>
 #include <move_base_msgs/MoveBaseAction.h>
@@ -53,11 +54,13 @@ ros::Subscriber robot_pose;
 ros::Subscriber status;
 ros::Subscriber robot_goal;
 ros::Subscriber end_goal;
+ros::Subscriber cmd_vel;
 ros::Subscriber movement_subscriber;
 
 nav_msgs::Path current_path;
 geometry_msgs::Pose current_pose;
 geometry_msgs::Pose end_pose;
+geometry_msgs::Twist current_vel; 
 
 
 actionlib_msgs::GoalStatusArray r_goal;
@@ -66,6 +69,7 @@ bool heard_path = false;
 bool heard_pose = false;
 bool heard_goal = false;
 bool block_detected = false;
+bool is_blocked = false;
 double time_for_blocked = 0;
 ros::Time startTime;
 /*******************************************************
@@ -76,6 +80,7 @@ void path_cb(const nav_msgs::Path::ConstPtr& msg)
     current_path = *msg;
     heard_path = true;
 }
+
 
 // status code 1 moving in progress
 // status code 4 is failed to get a plan
@@ -88,21 +93,9 @@ void status_cb(const actionlib_msgs::GoalStatusArray::ConstPtr& msg_goal)
 
 void pose_cb(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& msg)
 {
-
-
-    //clock_t startTime = clock();
-   // startTime = ros::Time::now();
-   // if((ros::Time::now() - startTime) > ros::Duration(2.0)){
-      //  ROS_INFO_STREAM("updated values within pose cb");
-        geometry_msgs::PoseWithCovarianceStamped new_pose = *msg;
-        current_pose = new_pose.pose.pose;
-        heard_pose = true;
-        //time_for_blocked = 0;
-        //return;
-    //}
-    //clock_t endTime = clock();
-    //clock_t clockTicksTaken = endTime - startTime;
-    //time_for_blocked += clockTicksTaken / (double) CLOCKS_PER_SEC;
+    geometry_msgs::PoseWithCovarianceStamped new_pose = *msg;
+    current_pose = new_pose.pose.pose;
+    heard_pose = true;
 }
 
 void end_goal_cb(const geometry_msgs::Pose::ConstPtr& msg)
@@ -110,6 +103,10 @@ void end_goal_cb(const geometry_msgs::Pose::ConstPtr& msg)
     geometry_msgs::Pose new_pose = *msg;
     end_pose = new_pose;
     heard_pose = true;
+}
+
+void cmd_vel_cb(const geometry_msgs::Twist::ConstPtr& msg){
+    current_vel = *msg;
 }
 
 double getDistance(){
@@ -157,6 +154,7 @@ int main(int argc, char **argv)
     robot_pose = n.subscribe("/amcl_pose", 1, pose_cb);
     robot_goal = n.subscribe("/move_base/status", 1, status_cb);
     end_goal = n.subscribe("/led_study/blocked_goal", 1, end_goal_cb);
+    cmd_vel = n.subscribe("/cmd_vel", 1, cmd_vel_cb);
 
     // Sets up action get_count_client
     actionlib::SimpleActionClient<bwi_msgs::LEDControlAction> ac("led_control_server", true);       
@@ -209,13 +207,16 @@ int main(int argc, char **argv)
             ROS_INFO_STREAM("out of loop distance to goal " <<  getDistance());
             ROS_INFO_STREAM("out of loop replan count " << get_count_srv.response.replan_count);
             ROS_INFO_STREAM("prev of loop replan count " << prevReplanCount);
+
             //test with replan count if reduces false positives and if improves preformance
             check = distanceToGoal-getDistance();
             old_count = prevReplanCount;
-            ROS_INFO_STREAM("old cou mnt " << old_count);
+            ROS_INFO_STREAM("old count " << old_count);
             ROS_INFO_STREAM("--------------------------pose size: " << old_size);
             ROS_INFO_STREAM("--------------------------pose size: " << current_path.poses.size());
-            while(((current_path.poses.size() < 5) && getDistance() > .5)  || (r_goal.status_list[0].status == 4) || (prevReplanCount + 30 < get_count_srv.response.replan_count) || check > 0 || time_for_blocked)///
+            is_blocked = (getDistance() > .5 && (current_vel.linear.x == 0 && current_vel.linear.y == 0 && current_vel.linear.z == 0 ));
+
+            while(((current_path.poses.size() < 5) && getDistance() > .5)  || (r_goal.status_list[0].status == 4) || (prevReplanCount + 30 < get_count_srv.response.replan_count) || is_blocked)///
             {
                 //check = -check;
                 //ROS_INFO_STREAM("distanceToGoal " << distanceToGoal);
@@ -278,6 +279,7 @@ int main(int argc, char **argv)
                 }
                 block_detected = true;
                 prevReplanCount = get_count_srv.response.replan_count;
+                is_blocked = (getDistance() > .5 && (current_vel.linear.x == 0 && current_vel.linear.y == 0 && current_vel.linear.z == 0 ));
                 inner_rate.sleep();
                 ros::spinOnce();
                 ROS_INFO_STREAM("--------------------------pose size old : " << old_size);
