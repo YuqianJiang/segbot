@@ -20,6 +20,7 @@
 #include <ros/package.h>
 #include <ros/ros.h>
 #include <std_msgs/Char.h>
+#include <std_msgs/Bool.h>
 #include <tf/tf.h>
 
 /*******************************************************
@@ -48,6 +49,7 @@
 *                 Global Variables                     *
 ********************************************************/
 ros::Publisher signal_pub;
+ros::Publisher blocked_pub;
 
 ros::Subscriber global_path;
 ros::Subscriber robot_pose;
@@ -133,6 +135,8 @@ int main(int argc, char **argv)
     std::ofstream log_file;
     std::string log_filename = ros::package::getPath("led_study") + "/data/" + "blocked_state.csv";
 
+   
+
     // Sets up service clients
     ros::ServiceClient speak_message_client = n.serviceClient<bwi_services::SpeakMessage>("/speak_message_service/speak_message");
     bwi_services::SpeakMessage speak_srv;
@@ -148,6 +152,11 @@ int main(int argc, char **argv)
 
     ros::ServiceClient led_client = ros::NodeHandle().serviceClient<bwi_msgs::LEDSetStatus>("/led_set_status");
     bwi_msgs::LEDSetStatus led_srv;
+
+    //publisher for state of client
+    blocked_pub = n.advertise<std_msgs::Bool>("/blocked_state", 1000);
+    std_msgs::Bool blocked;
+    blocked.data = false;
 
     // Sets up subscribers
     global_path = n.subscribe("/move_base/GlobalPlanner/plan", 1, path_cb);
@@ -221,7 +230,8 @@ int main(int argc, char **argv)
                 //check = -check;
                 //ROS_INFO_STREAM("distanceToGoal " << distanceToGoal);
                 //ROS_INFO_STREAM("getDistance " << getDistance());
-
+                blocked.data = true;
+                blocked_pub.publish(blocked);
                 ROS_INFO_STREAM("difference in loop " << (check));
                 ROS_INFO_STREAM("distanceToGoal " << distanceToGoal);
                 ROS_INFO_STREAM("in loop distance to goal " <<  getDistance());
@@ -286,7 +296,8 @@ int main(int argc, char **argv)
                 ROS_INFO_STREAM("--------------------------pose size: " << current_path.poses.size());
                 ROS_INFO_STREAM("--------------------------pose size diff : " << old_size - current_path.poses.size());
             }
-
+            blocked.data = false;;
+            blocked_pub.publish(blocked);
             recovered_check.sleep();
 
             if (block_detected)
