@@ -214,22 +214,26 @@ int main(int argc, char **argv)
             ROS_INFO_STREAM("old count " << old_count);
             ROS_INFO_STREAM("--------------------------pose size: " << old_size);
             ROS_INFO_STREAM("--------------------------pose size: " << current_path.poses.size());
-            is_blocked = (getDistance() > .5 && (current_vel.linear.x == 0 && current_vel.linear.y == 0 && current_vel.linear.z == 0 ));
+            ROS_INFO_STREAM("--------------------------dist size: " << getDistance());
+            is_blocked = ((current_path.poses.size() > 5 || check > 1 ) && (current_vel.linear.x == 0 && current_vel.linear.y == 0 && current_vel.linear.z == 0 ));
 
             while(((current_path.poses.size() < 5) && getDistance() > .5)  || (r_goal.status_list[0].status == 4) || (prevReplanCount + 30 < get_count_srv.response.replan_count) || is_blocked)///
             {
                 //check = -check;
                 //ROS_INFO_STREAM("distanceToGoal " << distanceToGoal);
                 //ROS_INFO_STREAM("getDistance " << getDistance());
-
                 ROS_INFO_STREAM("difference in loop " << (check));
                 ROS_INFO_STREAM("distanceToGoal " << distanceToGoal);
                 ROS_INFO_STREAM("in loop distance to goal " <<  getDistance());
                 ROS_INFO_STREAM("in of loop replan count " << get_count_srv.response.replan_count);
                 ROS_INFO_STREAM("prev of loop replan count " << prevReplanCount);
+                ROS_INFO_STREAM("--------------------------dist size: " << getDistance());
                 check = distanceToGoal-getDistance();
                 get_count_client.call(get_count_srv);
 
+                is_blocked = ((current_path.poses.size() > 5 || check > 1 ) && (current_vel.linear.x == 0 && current_vel.linear.y == 0 && current_vel.linear.z == 0 ));
+
+               
                 if(randLED == 1)
                 {
                     ROS_INFO_STREAM("want to use leds blocked loop");
