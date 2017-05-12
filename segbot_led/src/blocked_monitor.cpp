@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <queue>
+#include <signal.h>
 
 /*******************************************************
 *                    ROS Headers                       *
@@ -74,6 +75,14 @@ bool block_detected = false;
 bool is_blocked = false;
 double time_for_blocked = 0;
 ros::Time startTime;
+
+void sig_handler(int sig) {
+  ROS_INFO("caught sigint, init shutdown sequence...");
+  ros::shutdown();
+  exit(1);
+};
+
+
 /*******************************************************
 *                 Callback Functions                   *
 ********************************************************/
@@ -123,7 +132,9 @@ int main(int argc, char **argv)
     ros::Rate loop_rate(30);
     ros::Rate inner_rate(100);
     ros::Rate recovered_check(2);
-
+    
+    signal(SIGINT, sig_handler);
+    
     srand(time(NULL));
     double check_pose;
     time_t now = time(0);
