@@ -88,6 +88,7 @@ void sig_handler(int sig) {
 ********************************************************/
 void path_cb(const nav_msgs::Path::ConstPtr& msg)
 {
+	 ROS_INFO("in global planer cb");
     current_path = *msg;
     heard_path = true;
 }
@@ -137,7 +138,15 @@ int main(int argc, char **argv)
     
     srand(time(NULL));
     double check_pose;
+    //counts the time currently
     time_t now = time(0);
+    //counts the previous time to see if need to aggreagte data
+    time_t past = time(0);
+    int pastRandLed = 0;
+    int pastSpeechLed = 0;
+    //check if first pass through 
+    bool firstTime = true;
+
     //used to do recovery count
     int old_count = 0;
     int old_size = 0;
@@ -169,7 +178,8 @@ int main(int argc, char **argv)
     blocked.data = false;
 
     // Sets up subscribers
-    global_path = n.subscribe("/move_base/GlobalPlanner/plan", 1, path_cb);
+    // global_path = n.subscribe("/move_base/GlobalPlanner/plan", 1, path_cb);
+    global_path = n.subscribe("/move_base/NavfnROS/plan", 1, path_cb);
     robot_pose = n.subscribe("/amcl_pose", 1, pose_cb);
     robot_goal = n.subscribe("/move_base/status", 1, status_cb);
     end_goal = n.subscribe("/led_study/blocked_goal", 1, end_goal_cb);
@@ -205,8 +215,32 @@ int main(int argc, char **argv)
 
         if(heard_goal == true)
         {
+
             int randLED = rand()%2;
             int randSpeech = rand()%2;
+            if (firstTime){
+                pastRandLed = randLED;
+                pastSpeechLed = randSpeech;
+            }
+            ROS_INFO_STREAM("timed now " << now);
+            ROS_INFO_STREAM("timed past " << past);
+            if (!firstTime && difftime(now,past) < 3.0) {
+                randSpeech = pastRandLed;
+                randLED = pastRandLed;
+                ROS_INFO_STREAM("@@@@@@@ kept behavior timed now " << now << " time past is " << past);
+            } else if (difftime(now,past) > 3.0) {
+                ROS_INFO_STREAM("  @@@@@@@@@@@@@@@ time less than 1 threw out behavior");
+                past = time(0);
+                pastRandLed = randLED;
+                pastSpeechLed = randSpeech;
+            } else {
+                ROS_INFO_STREAM(" error @@@@@@@@@@@@@@@ time less than 1 threw out behavior");
+                past = time(0);
+                pastRandLed = randLED;
+                pastSpeechLed = randSpeech;
+
+            }
+            now = time(0); 
             //TODO check if getting closer to goal by euclidian distance
             //Check constant if correct for variability
             //ROS_INFO_STREAM("distanceToGoal " << distanceToGoal);
@@ -266,6 +300,12 @@ int main(int argc, char **argv)
                         //old_count = get_count_srv.response.replan_count;
                         ROS_INFO_STREAM("blocked using leds");
                         now = time(0);
+                        if (firstTime) {
+                            firstTime = false;
+                            ROS_INFO_STREAM("first time ");
+                        } else {
+                            ROS_INFO_STREAM("now time is " << now << "past time is " << past);
+                        }
                         tm *gmtm = gmtime(&now);
                         log_file.open(log_filename, std::ios_base::app | std::ios_base::out);
                         // state,led,speech,date,time
@@ -296,6 +336,12 @@ int main(int argc, char **argv)
                         //old_count = get_count_srv.response.replan_count;
                         ROS_INFO_STREAM("blocked not using leds");
                         now = time(0); 
+                        if (firstTime) {
+                            firstTime = false;
+                            ROS_INFO_STREAM("first time ");
+                        } else {
+                            ROS_INFO_STREAM("now time is " << now << "past time is " << past);
+                        }
                         tm *gmtm = gmtime(&now);
                         ROS_INFO_STREAM("old count " << old_count);
                         log_file.open(log_filename, std::ios_base::app | std::ios_base::out);
@@ -327,9 +373,9 @@ int main(int argc, char **argv)
                 gui_client.call(gui_srv);
                 block_detected = false;
 
-                led_srv.request.type.status = bwi_msgs::LEDStatus::RUN_ON;
-                led_client.call(led_srv);
-                led_client.call(led_srv);
+                // led_srv.request.type.status = bwi_msgs::LEDStatus::RUN_ON;
+                // led_client.call(led_srv);
+                // led_client.call(led_srv);
                 get_count_client.call(get_count_srv);
                 ROS_INFO_STREAM("diff " << get_count_srv.response.recovery_count - old_count);
                 get_count_client.call(get_count_srv);
