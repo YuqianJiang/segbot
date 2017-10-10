@@ -3,6 +3,7 @@
   <!-- set the tf prefix as necessary -->
   <arg name="tf_prefix" default="" />
   <arg name="device_id" default="#1" />
+  <arg name="gui" default="true" />
   <param name="tf_prefix" value="$(arg tf_prefix)" />
 
   <!-- launch the segway base -->
@@ -40,6 +41,6 @@
   </include>
 
   <!-- Diagnostics and battery monitor -->
-  <include file="$(find segbot_sensors)/launch/diagnostic/diagnostics.launch"/>
+  <include file="$(find segbot_sensors)/launch/diagnostic/diagnostics.launch" if="$(arg gui)"/>
 
 </launch>
