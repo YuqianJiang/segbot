@@ -9,6 +9,7 @@ from python_qt_binding.QtGui import QFont, QHBoxLayout, QLabel, QLineEdit, \
                                     QPushButton, QTextBrowser, QVBoxLayout, \
                                     QWidget
 from python_qt_binding.QtCore import SIGNAL
+from std_msgs.msg import Bool
 
 class QuestionDialogPlugin(Plugin):
 
@@ -39,6 +40,8 @@ class QuestionDialogPlugin(Plugin):
         # Setup service provider
         self.service = rospy.Service('question_dialog', QuestionDialog,
                                      self.service_callback)
+        self.pub = rospy.Publisher('is_dialog_busy', Bool, queue_size=1)
+
         self.response_ready = False
         self.response = None
         self.buttons = []
@@ -57,6 +60,7 @@ class QuestionDialogPlugin(Plugin):
         self._widget.emit(SIGNAL("update"))
         # Start timer against wall clock here instead of the ros clock.
         start_time = time.time()
+        self.pub.publish(True)
         while not self.response_ready:
             if self.request != req:
                 # The request got preempted by a new request.
@@ -65,9 +69,12 @@ class QuestionDialogPlugin(Plugin):
                 current_time = time.time()
                 if current_time - start_time > req.timeout:
                     self._widget.emit(SIGNAL("timeout"))
+                    self.pub.publish(False)
                     return QuestionDialogResponse(
                             QuestionDialogRequest.TIMED_OUT, "")
             time.sleep(0.2)
+
+        self.pub.publish(False)
         return self.response
 
     def update(self):
